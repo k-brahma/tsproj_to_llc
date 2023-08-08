@@ -25,7 +25,6 @@ while True:
     if event is None:
         break
     if event == '実行':
-        # process.py の関数 process を呼び出す
         process.process(values[0])
         break
 
