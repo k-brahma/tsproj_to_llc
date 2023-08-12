@@ -101,7 +101,7 @@ def process(file_path, create_llc=True, create_movie=False, create_thumbnail=Fal
         create_llc_config(opencv_dict)
 
     if create_movie:
-        cut_video_segments(opencv_dict)
+        cut_video_segments(opencv_dict,create_thumbnail)
 
     if create_thumbnail:
         create_thumbnail_files(opencv_dict)

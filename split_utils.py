@@ -78,7 +78,7 @@ def create_thumbnail_files(config):
         create_thumbnail_file(video_path, segment)
 
 
-def cut_video_segments(config):
+def cut_video_segments(config, create_thumbnail=True):
     """ 動画を切り出し、音声を割りつける """
     if not os.path.exists('tmp/'):
         os.makedirs('tmp/')
@@ -118,6 +118,8 @@ def cut_video_segments(config):
 
         # subprocess にて音声ファイルを切り出して割り当てる。また、サムネイルを作成する。
         extract_audio_and_merge(video_path, tmp_mp4_path, segment)
+        if create_thumbnail:
+            create_thumbnail_file(video_path, segment)
 
     cap.release()
     cv2.destroyAllWindows()
