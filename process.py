@@ -1,28 +1,31 @@
 import json
 import pathlib
 
+from split_utils import cut_video_segments, create_thumbnail_files
 
-def process(file_path):
+
+def create_opencv_config(file_path):
+    """ opencv 用の dict を作成する """
+    config_file_path = pathlib.Path(file_path)
     result_list = []
-    path = pathlib.Path(file_path)
-
-    # open file as json
-    with path.open(encoding='utf8') as f:
+    with config_file_path.open(encoding='utf8') as f:
         data = json.load(f)
-        timeline = data['timeline']
-        parameters = timeline['parameters']
-        toc = parameters['toc']
-        keyframes = toc['keyframes']
+        mp4_name = data['sourceBin'][0]['src']
+
+        _timeline = data['timeline']
+        _parameters = _timeline['parameters']
+        _toc = _parameters['toc']
+        _keyframes = _toc['keyframes']
 
         start = None
-        for keyframe in keyframes:
+        for keyframe in _keyframes:
             name = keyframe['value']
 
             # check tag name
-            spl = name.split('_')
-            if len(spl) == 1:
+            _spl = name.split('_')
+            if len(_spl) == 1:
                 continue
-            if spl[0].isdigit() is False:
+            if _spl[0].isdigit() is False:
                 continue
 
             end = keyframe['time'] / 706000000
@@ -30,9 +33,9 @@ def process(file_path):
             start = end
 
     # create new dict
-    new_dict = {
-        'version': 1,
-        'mediaFileName': 'support_230805_base.mp4',
+    result_dict = {
+        'config_file_path': config_file_path,
+        'mp4_name': mp4_name,
         'cutSegments': []
     }
     for start, end, name in result_list:
@@ -43,20 +46,62 @@ def process(file_path):
             temp_dict['end'] = end
         if name is not None:
             temp_dict['name'] = name
+        temp_dict['thumbnail'] = 20000
 
-        new_dict['cutSegments'].append(temp_dict)
+        result_dict['cutSegments'].append(temp_dict)
 
-    # create js object
-    # Convert to JSON
-    json_str = json.dumps(new_dict, indent=2, ensure_ascii=False)
+    output_path = config_file_path.parent / (config_file_path.stem + '_opencv.json')
+    with output_path.open('w', encoding='utf8') as f:
+        _dict = result_dict.copy()
+        _dict['config_file_path'] = str(_dict['config_file_path'])
+        f.write(json.dumps(_dict, indent=2, ensure_ascii=False))
 
-    # Make it look like a JS object by removing double quotes around keys
+    return result_dict
+
+
+def create_llc_config(opencv_dict):
+    """
+    llc ファイルを作成する
+
+    :param opencv_dict:
+    :return: None
+    """
+    llc_dict = {
+        'version': 1,
+        'mediaFileName': opencv_dict['mp4_name'],
+        'cutSegments': opencv_dict['cutSegments']
+    }
+    json_str = json.dumps(llc_dict, indent=2, ensure_ascii=False)
     js_object_str = '\n'.join(
         line.replace('\"', '') if line.strip().endswith(':') else line for line in json_str.splitlines()
     )
 
-    output_path = path.parent / (path.stem + '.llc')
-
-    # write to file
+    config_file_path = pathlib.Path(opencv_dict['config_file_path'])
+    output_path = config_file_path.parent / (config_file_path.stem + '.llc')
     with output_path.open('w', encoding='utf8') as f:
         f.write(js_object_str)
+
+
+def process(file_path, create_llc=True, create_movie=False, create_thumbnail=False):
+    """
+    主要な処理
+
+    :param use_opencv: True のとき、すぐに opencv を使って動画を分割する
+    :param file_path:
+    :param create_llc:
+    """
+    # file_path のファイルの拡張子が .tsproj のとき、 .json のときで処理を分ける。
+    # .json のときは、それを読み込んで opencv_dict とする
+    if file_path.endswith('.tscproj'):
+        opencv_dict = create_opencv_config(file_path)
+    else:
+        opencv_dict = json.load(open(file_path, encoding='utf8'))
+
+    if create_llc:
+        create_llc_config(opencv_dict)
+
+    if create_movie:
+        cut_video_segments(opencv_dict)
+
+    if create_thumbnail:
+        create_thumbnail_files(opencv_dict)

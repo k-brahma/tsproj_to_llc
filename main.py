@@ -13,7 +13,10 @@ import process
 layout = [
     [sg.Text('ファイルを選択してください')],
     [sg.InputText(), sg.FileBrowse()],
-    [sg.Submit(button_text='実行')]
+    [sg.Checkbox('Create llc file', default=True)],
+    [sg.Checkbox('Create Movie immediately', default=False)],
+    [sg.Checkbox('Create Thumbnail', default=False)],
+    [sg.Submit(button_text='実行')],
 ]
 
 # ファイル選択ダイアログの表示
@@ -25,7 +28,7 @@ while True:
     if event is None:
         break
     if event == '実行':
-        process.process(values[0])
+        process.process(values[0], values[1], values[2], values[3], )
         break
 
 window.close()
