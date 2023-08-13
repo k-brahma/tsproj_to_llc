@@ -1,6 +1,7 @@
 import os
 import pathlib
 import subprocess
+from concurrent.futures import ProcessPoolExecutor
 
 
 def cut_video_segment(video_path, segment):
@@ -30,10 +31,18 @@ def cut_video_segments(config, create_thumbnail=True):
     if not os.path.exists(video_path):
         raise Exception("動画ファイルが見つかりませんでした。")
 
-    for segment in config["cutSegments"]:
-        cut_video_segment(str(video_path), segment)
-        if create_thumbnail:
-            create_thumbnail_file(video_path, segment)
+    with ProcessPoolExecutor() as executor:
+        futures = []
+
+        for segment in config["cutSegments"]:
+            # タスクを非同期でスケジュール
+            futures.append(executor.submit(cut_video_segment, str(video_path), segment))
+            if create_thumbnail:
+                futures.append(executor.submit(create_thumbnail_file, video_path, segment))
+
+        # 全てのタスクが完了するのを待つ
+        for future in futures:
+            future.result()
 
 
 def create_thumbnail_file(video_path, segment):
