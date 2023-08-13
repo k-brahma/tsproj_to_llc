@@ -103,7 +103,11 @@ def cut_video_segments(config, create_thumbnail=True):
     if not os.path.exists('tmp/'):
         os.makedirs('tmp/')
 
-    mp4_dir = pathlib.Path(config["config_file_path"].parent)
+    config_file_path = config["config_file_path"]
+    if isinstance(config_file_path, str):
+        config_file_path = pathlib.Path(config_file_path)
+
+    mp4_dir = pathlib.Path(config_file_path.parent)
     mp4_name = config["mp4_name"]
     video_path = pathlib.Path.joinpath(mp4_dir, mp4_name)
     if not os.path.exists(video_path):
