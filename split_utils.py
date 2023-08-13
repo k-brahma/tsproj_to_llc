@@ -5,6 +5,13 @@ from concurrent.futures import ProcessPoolExecutor
 
 
 def cut_video_segment(video_path, segment):
+    """
+    動画を切り出す
+
+    :param video_path: 動画ファイルのパス
+    :param segment: 切り出す動画の情報
+    :return:
+    """
     start_time = segment.get("start", 0)
     end_time = segment["end"]
     output_name = segment["name"]
@@ -21,6 +28,13 @@ def cut_video_segment(video_path, segment):
 
 
 def cut_video_segments(config, create_thumbnail=True):
+    """
+    動画を切り出す
+
+    :param config: config dict
+    :param create_thumbnail: True: サムネイルを生成する
+    :return:
+    """
     config_file_path = config["config_file_path"]
     if isinstance(config_file_path, str):
         config_file_path = pathlib.Path(config_file_path)
