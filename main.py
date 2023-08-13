@@ -50,8 +50,6 @@ def execute_process(file_path, create_llc=True, create_movie=False, create_thumb
     :param create_movie: True のとき、すぐに opencv を使って動画を分割する
     :param create_thumbnail: True のとき、サムネイルを作成する
     """
-    # file_path のファイルの拡張子が .tscproj のとき、 .json のときで処理を分ける。
-    # .json のときは、それを読み込んで opencv_dict とする
     if file_path.endswith('.tscproj'):
         opencv_dict = create_opencv_config(file_path)
     else:

@@ -77,7 +77,7 @@ def cut_video_segments(config, create_thumbnail=True):
 
 def create_thumbnail_file(config_file_path, segment):
     """
-    デフォルトのサムネイルを生成
+    サムネイルを生成する
 
     :param config_file_path: config file's location, pathlib.Path
     :param segment: 動画の切り出し箇所と生成するファイルのファイル名を含む辞書
@@ -93,7 +93,7 @@ def create_thumbnail_file(config_file_path, segment):
 
 def create_thumbnail_files(config):
     """
-    デフォルトのサムネイルを生成
+    すべての動画についてサムネイルを生成する
 
     :param config: config file, dict
     """

@@ -59,9 +59,9 @@ def create_opencv_config(file_path):
 
 def create_llc_config(opencv_dict):
     """
-    llc ファイルを作成する
+    LossLessCut 用の .llc ファイルを作成する
 
-    :param opencv_dict:
+    :param opencv_dict: oepcv 用の dict
     """
     llc_dict = {
         'version': 1,
