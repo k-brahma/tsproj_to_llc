@@ -84,8 +84,9 @@ def create_llc_config(opencv_dict):
 
 def process(file_path, create_llc=True, create_movie=False, create_thumbnail=False):
     """
-    主要な処理
+    UIからの入力を受け取って、処理を実行する
 
+    :param file_path: tscproj または json ファイルのパス
     :param create_llc: True のとき、llc ファイルを作成する
     :param create_movie: True のとき、すぐに opencv を使って動画を分割する
     :param create_thumbnail: True のとき、サムネイルを作成する

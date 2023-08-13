@@ -11,7 +11,7 @@ def extract_audio_and_merge(video_path, tmp_mp4_path, segment):
 
     :param video_path: video path, pathlib.Path
     :param tmp_mp4_path: ファイル名だがプロジェクトの tmp ディレクトリにあるものなので事実上パスと同じ
-    :param segment:
+    :param segment: 動画の切り出し箇所と生成するファイルのファイル名を含む辞書
     """
     start_time, end_time, output_name = segment.get("start", 0), segment["end"], segment["name"]
 
@@ -54,7 +54,12 @@ def extract_audio_and_merge(video_path, tmp_mp4_path, segment):
 
 
 def create_thumbnail_file(video_path, segment):
-    """ デフォルトのサムネイルを生成"""
+    """
+    デフォルトのサムネイルを生成
+
+    :param video_path: video path, pathlib.Path
+    :param segment: 動画の切り出し箇所と生成するファイルのファイル名を含む辞書
+    """
     file_name, millisecond = segment["name"], segment.get("thumbnail", 20000)
 
     mp4_path = video_path.parent / f'mp4/{file_name}.mp4'
@@ -70,7 +75,11 @@ def create_thumbnail_file(video_path, segment):
 
 
 def create_thumbnail_files(config):
-    """ デフォルトのサムネイルを生成"""
+    """
+    デフォルトのサムネイルを生成
+
+    :param config: config file, dict
+    """
     config_file_path = config["config_file_path"]
     if isinstance(config_file_path, str):
         config_file_path = pathlib.Path(config_file_path)
@@ -85,7 +94,12 @@ def create_thumbnail_files(config):
 
 
 def cut_video_segments(config, create_thumbnail=True):
-    """ 動画を切り出し、音声を割りつける """
+    """
+    動画を切り出し、音声を割りつける
+
+     :param config: config file, dict
+     :param create_thumbnail: サムネイルを生成するかどうか
+    """
     if not os.path.exists('tmp/'):
         os.makedirs('tmp/')
 
