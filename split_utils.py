@@ -21,6 +21,7 @@ def extract_audio_and_merge(video_path, tmp_mp4_path, segment):
 
     subprocess.call([
         "ffmpeg",
+        "-y",
         "-i", video_path,
         "-ss", str(start_time),
         "-to", str(end_time),
@@ -38,6 +39,7 @@ def extract_audio_and_merge(video_path, tmp_mp4_path, segment):
     # 切り出した映像と音声を結合
     subprocess.call([
         "ffmpeg",
+        "-y",
         "-i", tmp_mp4_path,
         "-i", tmp_audio_path,
         "-c:v", "copy",
@@ -59,6 +61,7 @@ def create_thumbnail_file(video_path, segment):
     thumbnail_path = video_path.parent / f'mp4/{file_name}.png'
     subprocess.call([
         "ffmpeg",
+        "-y",
         "-i", mp4_path,
         "-ss", str(int(millisecond / 1000)),
         "-vframes", "1",
@@ -68,7 +71,10 @@ def create_thumbnail_file(video_path, segment):
 
 def create_thumbnail_files(config):
     """ デフォルトのサムネイルを生成"""
-    mp4_dir = pathlib.Path(config["config_file_path"].parent)
+    config_file_path = config["config_file_path"]
+    if isinstance(config_file_path, str):
+        config_file_path = pathlib.Path(config_file_path)
+    mp4_dir = pathlib.Path(config_file_path.parent)
     mp4_name = config["mp4_name"]
     video_path = pathlib.Path.joinpath(mp4_dir, mp4_name)
     if not os.path.exists(video_path):

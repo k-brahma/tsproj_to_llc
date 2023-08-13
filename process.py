@@ -86,11 +86,11 @@ def process(file_path, create_llc=True, create_movie=False, create_thumbnail=Fal
     """
     主要な処理
 
-    :param use_opencv: True のとき、すぐに opencv を使って動画を分割する
-    :param file_path:
-    :param create_llc:
+    :param create_llc: True のとき、llc ファイルを作成する
+    :param create_movie: True のとき、すぐに opencv を使って動画を分割する
+    :param create_thumbnail: True のとき、サムネイルを作成する
     """
-    # file_path のファイルの拡張子が .tsproj のとき、 .json のときで処理を分ける。
+    # file_path のファイルの拡張子が .tscproj のとき、 .json のときで処理を分ける。
     # .json のときは、それを読み込んで opencv_dict とする
     if file_path.endswith('.tscproj'):
         opencv_dict = create_opencv_config(file_path)
@@ -101,7 +101,7 @@ def process(file_path, create_llc=True, create_movie=False, create_thumbnail=Fal
         create_llc_config(opencv_dict)
 
     if create_movie:
-        cut_video_segments(opencv_dict,create_thumbnail)
+        cut_video_segments(opencv_dict, create_thumbnail)
 
     if create_thumbnail:
         create_thumbnail_files(opencv_dict)
