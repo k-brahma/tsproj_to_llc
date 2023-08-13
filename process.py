@@ -1,108 +1,101 @@
-import json
+import os
 import pathlib
-
-from split_utils import cut_video_segments, create_thumbnail_files
-
-
-def create_opencv_config(file_path):
-    """ opencv 用の dict を作成する """
-    config_file_path = pathlib.Path(file_path)
-    result_list = []
-    with config_file_path.open(encoding='utf8') as f:
-        data = json.load(f)
-        mp4_name = data['sourceBin'][0]['src']
-
-        _timeline = data['timeline']
-        _parameters = _timeline['parameters']
-        _toc = _parameters['toc']
-        _keyframes = _toc['keyframes']
-
-        start = None
-        for keyframe in _keyframes:
-            name = keyframe['value']
-
-            # check tag name
-            _spl = name.split('_')
-            if len(_spl) == 1:
-                continue
-            if _spl[0].isdigit() is False:
-                continue
-
-            end = keyframe['time'] / 706000000
-            result_list.append((start, end, name))
-            start = end
-
-    # create new dict
-    result_dict = {
-        'config_file_path': config_file_path,
-        'mp4_name': mp4_name,
-        'cutSegments': []
-    }
-    for start, end, name in result_list:
-        temp_dict = {}
-        if start is not None:
-            temp_dict['start'] = start
-        if end is not None:
-            temp_dict['end'] = end
-        if name is not None:
-            temp_dict['name'] = name
-        temp_dict['thumbnail'] = 20000
-
-        result_dict['cutSegments'].append(temp_dict)
-
-    output_path = config_file_path.parent / (config_file_path.stem + '_opencv.json')
-    with output_path.open('w', encoding='utf8') as f:
-        _dict = result_dict.copy()
-        _dict['config_file_path'] = str(_dict['config_file_path'])
-        f.write(json.dumps(_dict, indent=2, ensure_ascii=False))
-
-    return result_dict
+import subprocess
+from concurrent.futures import ProcessPoolExecutor
 
 
-def create_llc_config(opencv_dict):
+def get_config_file_path(config):
     """
-    llc ファイルを作成する
+    configファイルのディレクトリを取得
 
-    :param opencv_dict:
-    :return: None
+    :param config: config dict
+    :return: pathlib.Path
     """
-    llc_dict = {
-        'version': 1,
-        'mediaFileName': opencv_dict['mp4_name'],
-        'cutSegments': opencv_dict['cutSegments']
-    }
-    json_str = json.dumps(llc_dict, indent=2, ensure_ascii=False)
-    js_object_str = '\n'.join(
-        line.replace('\"', '') if line.strip().endswith(':') else line for line in json_str.splitlines()
-    )
+    config_file_path = config["config_file_path"]
+    if isinstance(config_file_path, str):
+        config_file_path = pathlib.Path(config_file_path)
 
-    config_file_path = pathlib.Path(opencv_dict['config_file_path'])
-    output_path = config_file_path.parent / (config_file_path.stem + '.llc')
-    with output_path.open('w', encoding='utf8') as f:
-        f.write(js_object_str)
+    return config_file_path
 
 
-def process(file_path, create_llc=True, create_movie=False, create_thumbnail=False):
+def get_base_movie_path(config):
     """
-    UIからの入力を受け取って、処理を実行する
+    元になる動画のパスを取得
 
-    :param file_path: tscproj または json ファイルのパス
-    :param create_llc: True のとき、llc ファイルを作成する
-    :param create_movie: True のとき、すぐに opencv を使って動画を分割する
-    :param create_thumbnail: True のとき、サムネイルを作成する
+    :param config:
+    :return: pathlib.Path
     """
-    # file_path のファイルの拡張子が .tscproj のとき、 .json のときで処理を分ける。
-    # .json のときは、それを読み込んで opencv_dict とする
-    if file_path.endswith('.tscproj'):
-        opencv_dict = create_opencv_config(file_path)
-    else:
-        opencv_dict = json.load(open(file_path, encoding='utf8'))
+    return get_config_file_path(config).parent / config["mp4_name"]
 
-    if create_llc:
-        create_llc_config(opencv_dict)
 
-    if create_movie:
-        cut_video_segments(opencv_dict, create_thumbnail)
+def cut_video_segment(video_path, segment):
+    """
+    動画を切り出す
 
-    if create_thumbnail:
-        create_thumbnail_files(opencv_dict)
+    :param video_path: 動画ファイルのパス
+    :param segment: 切り出す動画の情報
+    """
+    start_time = segment.get("start", 0)
+    end_time = segment["end"]
+    output_name = segment["name"]
+
+    output_video_path = pathlib.Path(video_path).parent / 'mp4' / f'{output_name}.mp4'
+    if not output_video_path.parent.exists():
+        os.makedirs(output_video_path.parent)
+
+    # 動画と音声を同時に切り出す
+    subprocess.call([
+        "ffmpeg", "-y", "-i", video_path, "-ss", str(start_time), "-to", str(end_time), "-c", "copy", output_video_path
+    ])
+
+
+def cut_video_segments(config, create_thumbnail=True):
+    """
+    動画を切り出す
+
+    :param config: config dict
+    :param create_thumbnail: True: サムネイルを生成する
+    """
+    config_file_path = get_config_file_path(config)
+    video_path = get_base_movie_path(config)
+    if not video_path.exists():
+        raise Exception("動画ファイルが見つかりませんでした。")
+
+    with ProcessPoolExecutor() as executor:
+        futures = []
+
+        for segment in config["cutSegments"]:
+            # タスクを非同期でスケジュール
+            futures.append(executor.submit(cut_video_segment, str(video_path), segment))
+            if create_thumbnail:
+                futures.append(executor.submit(create_thumbnail_file, config_file_path, segment))
+
+        # 全てのタスクが完了するのを待つ
+        for future in futures:
+            future.result()
+
+
+def create_thumbnail_file(config_file_path, segment):
+    """
+    デフォルトのサムネイルを生成
+
+    :param config_file_path: config file's location, pathlib.Path
+    :param segment: 動画の切り出し箇所と生成するファイルのファイル名を含む辞書
+    """
+    file_name, millisecond = segment["name"], segment.get("thumbnail", 20000)
+
+    movie_path = config_file_path.parent / f'mp4/{file_name}.mp4'
+    thumbnail_path = config_file_path.parent / f'mp4/{file_name}.png'
+    subprocess.call([
+        "ffmpeg", "-y", "-i", movie_path, "-ss", str(int(millisecond / 1000)), "-vframes", "1", thumbnail_path
+    ])
+
+
+def create_thumbnail_files(config):
+    """
+    デフォルトのサムネイルを生成
+
+    :param config: config file, dict
+    """
+    for segment in config["cutSegments"]:
+        create_thumbnail_file(get_config_file_path(config), segment)
