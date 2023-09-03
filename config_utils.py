@@ -1,5 +1,9 @@
+"""
+regex pattern p[0-9]+_.*+ にマッチするネーミングルールで付与されたタグをもとに、動画を分割する
+"""
 import json
 import pathlib
+import re
 
 
 def create_opencv_config(file_path):
@@ -19,11 +23,11 @@ def create_opencv_config(file_path):
         for keyframe in _keyframes:
             name = keyframe['value']
 
-            # check tag name
-            _spl = name.split('_')
-            if len(_spl) == 1:
-                continue
-            if not _spl[0].isdigit():
+            # get regex pattern p[0-9]+_.*+
+            match = re.match(r'^p_(\d{2})_', name)
+            if match:
+                num = int(match.group(1))
+            else:
                 continue
 
             end = keyframe['time'] / 706000000
