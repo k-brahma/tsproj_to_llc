@@ -5,8 +5,7 @@ from concurrent.futures import ProcessPoolExecutor
 
 
 def get_config_file_path(config):
-    """
-    configファイルのディレクトリを取得
+    """ configファイルのディレクトリを取得
 
     :param config: config dict
     :return: pathlib.Path
@@ -19,8 +18,7 @@ def get_config_file_path(config):
 
 
 def get_base_movie_path(config):
-    """
-    元になる動画のパスを取得
+    """ 元になる動画のパスを取得
 
     :param config:
     :return: pathlib.Path
@@ -29,8 +27,7 @@ def get_base_movie_path(config):
 
 
 def cut_video_segment(video_path, segment):
-    """
-    動画を切り出す
+    """ 動画を切り出す
 
     :param video_path: 動画ファイルのパス
     :param segment: 切り出す動画の情報
@@ -50,8 +47,7 @@ def cut_video_segment(video_path, segment):
 
 
 def cut_video_segments(config, create_thumbnail=True):
-    """
-    動画を切り出す
+    """ 動画を切り出す
 
     :param config: config dict
     :param create_thumbnail: True: サムネイルを生成する
@@ -76,8 +72,7 @@ def cut_video_segments(config, create_thumbnail=True):
 
 
 def create_thumbnail_file(config_file_path, segment):
-    """
-    サムネイルを生成する
+    """ サムネイルを生成する
 
     :param config_file_path: config file's location, pathlib.Path
     :param segment: 動画の切り出し箇所と生成するファイルのファイル名を含む辞書
@@ -92,8 +87,7 @@ def create_thumbnail_file(config_file_path, segment):
 
 
 def create_thumbnail_files(config):
-    """
-    すべての動画についてサムネイルを生成する
+    """ すべての動画についてサムネイルを生成する
 
     :param config: config file, dict
     """

@@ -1,8 +1,11 @@
-"""
+""" .tsproj ファイルを読み込んで、分割情報ファイルを生成する。または、動画を動画に従っで分割する。
+
 PySimpleGUI で作られたフォーム
 ファイル選択ダイアログと、実行ボタンがある。
 
 実行ボタンで、 config_utils.py の関数 process を呼び出す。
+
+動作確認済バージョン: camtasia 2021
 """
 import json
 
@@ -13,9 +16,7 @@ from process import cut_video_segments, create_thumbnail_files
 
 
 def main():
-    """
-    ファイル選択ダイアログを表示する。
-    """
+    """ ファイル選択ダイアログを表示する。 """
     # ファイル選択ダイアログのレイアウト
     layout = [
         [sg.Text('ファイルを選択してください')],
@@ -42,8 +43,7 @@ def main():
 
 
 def execute_process(file_path, create_llc=True, create_movie=False, create_thumbnail=False):
-    """
-    UIからの入力を受け取って、処理を実行する
+    """ UIからの入力を受け取って、処理を実行する
 
     :param file_path: tscproj または json ファイルのパス
     :param create_llc: True のとき、llc ファイルを作成する
