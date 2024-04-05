@@ -1,8 +1,7 @@
-""" パスと分割タイミングのリストを渡して直接動画を分割するプログラム
-
-ffmpeg 版
-"""
+"""　パスと分割タイミングのCSVファイルを渡して直接動画を分割するプログラム ffmpeg 版　"""
+import csv
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -15,47 +14,83 @@ def convert_to_seconds(time_str):
     return hours * 3600 + minutes * 60 + seconds
 
 
-# 文字列形式の分割タイ21ミングのリスト
-split_time_str_list = [
-    "00:11:07",  # end of01
-    "00:30:32",  # end of02
-    # "00:41:16",  # end of03
-    "00:44:05",  # end of03
-    "00:55:38",  # end of04
-    "01:06:58",  # end of05
-    "01:21:05",  # end of06
-    "01:37:21",  # end of07
-    "01:39:47",  # end of08
-    "01:46:28",  # end of09
-    "01:54:47",  # end of10
-]
+def get_split_times(csv_path):
+    """ CSVファイルから分割タイミングを読み込む関数
 
-# 秒単位の分割タイミングを算出
-split_times = [convert_to_seconds(time_str) for time_str in split_time_str_list]
+    csv ファイルは以下の列を有する。
+    ID,ファイル名,タイトル,終了時刻
+    このうち、ファイル名と終了時刻を取得する。
 
-# 動画ファイルのパス
-path = Path("data", "python_semianr_live_220731.mp4")
+    :param: csv_path: CSVファイルのパス
+    """
+    name_time_list = []
+    with open(csv_path, 'r', encoding='utf8') as f:
+        reader = csv.reader(f)
+        for i, row in enumerate(reader):
+            if i == 0:
+                continue  # ヘッダ行をスキップ
+            filename = row[1]  # ファイル名
+            end_time = convert_to_seconds(row[3])  # 終了時刻
+            name_time_list.append((filename, end_time))
 
-full_path = path.resolve()
+    return name_time_list
 
-print(full_path, full_path.exists())
-video_path = str(path)
 
-# 分割後のファイル名のプレフィックス
-output_prefix = "data/ffmpeg/python_semianr_live_220731_"
+def get_video_path_str(file_name):
+    """ 動画ファイルのパスを取得する関数
 
-# 分割タイミングのペアを作成
-split_pairs = [(0, split_times[0])] + list(zip(split_times, split_times[1:]))
+    :param: file_name: 動画ファイルの名前 """
+    path = Path("data", file_name)
+    full_path = path.resolve()
+    print(full_path, full_path.exists())
+    video_path = str(path)
+    return video_path
 
-# 動画を分割
-for i, (start_time, end_time) in enumerate(split_pairs, start=1):
-    output_filename = f"{output_prefix}{i:02d}.mp4"
-    subprocess.call(
-        ['ffmpeg', '-y', '-i', video_path, '-ss', str(start_time), '-to', str(end_time), '-c', 'copy', output_filename])
 
-    # 先頭フレームをPNG画像として保存
-    output_image_filename = f"{output_prefix}{i:02d}.png"
-    subprocess.call(
-        ['ffmpeg', '-y', '-i', output_filename, '-vframes', '1', '-q:v', '2', output_image_filename])
+def process(name_time_list, video_path, output_dir):
+    """ 動画の分割処理を行う関数
 
-print("動画の分割が完了しました。")
+    :param: name_time_list: 分割情報のリスト
+    :param: video_path: 動画ファイルのパス
+    :param: output_dir: 分割後のファイルを保存するディレクトリ """
+    start_time = 0
+    for i, (filename, end_time) in enumerate(name_time_list, start=1):
+        output_filename = f"{output_dir}{filename}.mp4"
+        subprocess.call(
+            ['ffmpeg', '-y', '-i', video_path, '-ss', str(start_time), '-to', str(end_time), '-c', 'copy',
+             output_filename])
+
+        # 先頭フレームをPNG画像として保存
+        output_image_filename = f"{output_dir}{filename}.png"
+        subprocess.call(
+            ['ffmpeg', '-y', '-i', output_filename, '-vframes', '1', '-q:v', '2', output_image_filename])
+
+        start_time = end_time
+
+    print("動画の分割が完了しました。")
+
+
+# メイン処理
+def main(file_name_prefix):
+    """ メイン処理
+
+    :param: file_name_prefix: ファイル名のプレフィックス """
+    csv_path = Path(f"data/{file_name_prefix}.csv")  # CSVファイルのパス
+    name_time_list = get_split_times(csv_path)  # 分割情報のリスト
+    video_path = get_video_path_str(f"{file_name_prefix}.mp4")  # 動画ファイルのパス
+
+    # 分割後のファイルを保存するディレクトリ
+    output_dir = "data/results/"
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    process(name_time_list, video_path, output_dir)
+
+
+if __name__ == '__main__':
+    # file_name_prefix はコマンドライン引数で指定
+    if len(sys.argv) > 1:
+        file_name_prefix = sys.argv[1]
+    else:
+        # data ディレクトリ内で見つけた .mp4 ファイルを対象にする
+        file_name_prefix = next(Path("data").glob("*.mp4")).stem
+    main(file_name_prefix)
