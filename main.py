@@ -1,69 +1,96 @@
-""" .tsproj ファイルを読み込んで、分割情報ファイルを生成する。または、動画を動画に従っで分割する。
-
-PySimpleGUI で作られたフォーム
-ファイル選択ダイアログと、実行ボタンがある。
-
-実行ボタンで、 config_utils.py の関数 process を呼び出す。
-
-動作確認済バージョン: camtasia 2021
-"""
-import json
-
-import PySimpleGUI as sg
-
-from config_utils import create_opencv_config, create_llc_config
-from process import cut_video_segments, create_thumbnail_files
+"""　パスと分割タイミングのCSVファイルを渡して直接動画を分割するプログラム ffmpeg 版　"""
+import csv
+import subprocess
+import sys
+from pathlib import Path
 
 
-def main():
-    """ ファイル選択ダイアログを表示する。 """
-    # ファイル選択ダイアログのレイアウト
-    layout = [
-        [sg.Text('ファイルを選択してください')],
-        [sg.InputText(), sg.FileBrowse()],
-        [sg.Checkbox('Create llc file', default=True)],
-        [sg.Checkbox('Create Movie immediately', default=False)],
-        [sg.Checkbox('Create Thumbnail', default=False)],
-        [sg.Submit(button_text='実行')],
-    ]
+def convert_to_seconds(time_str):
+    """ 文字列形式の時間（'HH:MM:SS'）を秒単位に変換する関数
 
-    # ファイル選択ダイアログの表示
-    window = sg.Window('ファイル選択', layout)
-
-    # ファイル選択ダイアログのイベントループ
-    while True:
-        event, values = window.read()
-        if event is None:
-            break
-        if event == '実行':
-            execute_process(values[0], values[1], values[2], values[3], )
-            break
-
-    window.close()
-
-
-def execute_process(file_path, create_llc=True, create_movie=False, create_thumbnail=False):
-    """ UIからの入力を受け取って、処理を実行する
-
-    :param file_path: tscproj または json ファイルのパス
-    :param create_llc: True のとき、llc ファイルを作成する
-    :param create_movie: True のとき、すぐに opencv を使って動画を分割する
-    :param create_thumbnail: True のとき、サムネイルを作成する
+    :param: time_str: 文字列形式の時間（'HH:MM:SS'）
     """
-    if file_path.endswith('.tscproj'):
-        opencv_dict = create_opencv_config(file_path)
+    hours, minutes, seconds = map(int, time_str.split(':'))
+    return hours * 3600 + minutes * 60 + seconds
+
+
+def get_split_times(csv_path):
+    """ CSVファイルから分割タイミングを読み込む関数
+
+    csv ファイルは以下の列を有する。
+    ID,ファイル名,タイトル,終了時刻
+    このうち、ファイル名と終了時刻を取得する。
+
+    :param: csv_path: CSVファイルのパス
+    """
+    name_time_list = []
+    with open(csv_path, 'r', encoding='utf8') as f:
+        reader = csv.reader(f)
+        for i, row in enumerate(reader):
+            if i == 0:
+                continue  # ヘッダ行をスキップ
+            filename = row[1]  # ファイル名(拡張子なし)
+            end_time = convert_to_seconds(row[3])  # 終了時刻
+            name_time_list.append((filename, end_time))
+
+    return name_time_list
+
+
+def get_video_path_str(file_name):
+    """ 動画ファイルのパスを取得する関数
+
+    :param: file_name: 動画ファイルの名前 """
+    path = Path("data", file_name)
+    full_path = path.resolve()
+    print(full_path, full_path.exists())
+    video_path = str(path)
+    return video_path
+
+
+def process(name_time_list, video_path, output_dir):
+    """ 動画の分割処理を行う関数
+
+    :param: name_time_list: 分割情報のリスト
+    :param: video_path: 動画ファイルのパス
+    :param: output_dir: 分割後のファイルを保存するディレクトリ """
+    start_time = 0
+    for i, (filename, end_time) in enumerate(name_time_list, start=1):
+        output_filename = f"{output_dir}{filename}.mp4"
+        subprocess.call(
+            ['ffmpeg', '-y', '-i', video_path, '-ss', str(start_time), '-to', str(end_time), '-c', 'copy',
+             output_filename])
+
+        # 先頭フレームをPNG画像として保存
+        output_image_filename = f"{output_dir}{filename}.png"
+        subprocess.call(
+            ['ffmpeg', '-y', '-i', output_filename, '-vframes', '1', '-q:v', '2', output_image_filename])
+
+        start_time = end_time
+
+    print("動画の分割が完了しました。")
+
+
+# メイン処理
+def main(file_name_prefix):
+    """ メイン処理
+
+    :param: file_name_prefix: ファイル名のプレフィックス """
+    csv_path = Path(f"data/{file_name_prefix}.csv")  # CSVファイルのパス
+    name_time_list = get_split_times(csv_path)  # 分割情報のリスト
+    video_path = get_video_path_str(f"{file_name_prefix}.mp4")  # 動画ファイルのパス
+
+    # 分割後のファイルを保存するディレクトリ
+    output_dir = "data/results/"
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    process(name_time_list, video_path, output_dir)
+
+
+if __name__ == '__main__':
+    # file_name_prefix はコマンドライン引数で指定
+    if len(sys.argv) > 1:
+        file_name_prefix = sys.argv[1]
     else:
-        opencv_dict = json.load(open(file_path, encoding='utf8'))
-
-    if create_llc:
-        create_llc_config(opencv_dict)
-
-    if create_movie:
-        cut_video_segments(opencv_dict, create_thumbnail)
-
-    if create_thumbnail:
-        create_thumbnail_files(opencv_dict)
-
-
-if __name__ == "__main__":
-    main()
+        # data ディレクトリ内で見つけた .mp4 ファイルを対象にする
+        file_name_prefix = next(Path("data").glob("*.mp4")).stem
+    main(file_name_prefix)
