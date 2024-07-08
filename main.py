@@ -57,6 +57,8 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from thumbnail import generate_thumbnails_in_memory
+
 
 def convert_to_seconds(time_str):
     """ 文字列形式の時間（'HH:MM:SS'）を秒単位に変換する関数
@@ -141,7 +143,13 @@ def process_single_video(filename, end_time, base_video_path, output_dir, start_
     # 動画の分割
     split_video(base_video_path, output_mp4_name, start_time, end_time)
 
-    # サムネイルの生成（thumbnail_intervalがNoneでない場合のみ）
+    # 分割した動画を読み込んでの thumbnails 生成
+    # generate_thumbnails(output_dir, filename, output_mp4_name, thumbnail_interval)
+    generate_thumbnails_in_memory(output_dir, filename, output_mp4_name, thumbnail_interval)
+
+
+def generate_thumbnails(output_dir, filename, output_mp4_name, thumbnail_interval):
+    """ ffmpeg を使った thumbnail の生成 """
     if thumbnail_interval is not None:
         output_sub_dir = Path(f"{output_dir}{filename}")
         output_sub_dir.mkdir(parents=True, exist_ok=True)
@@ -162,8 +170,8 @@ def process_single_video(filename, end_time, base_video_path, output_dir, start_
 def main():
     parser = argparse.ArgumentParser(description='動画分割プログラム')
     parser.add_argument('file_name_prefix', nargs='?', help='ファイル名のプレフィックス')
-    parser.add_argument('--thumbnails', '-t', action='store_true', help='サムネイルを生成する')
-    parser.add_argument('--thumbnail-interval', '-i', type=int, default=60, help='サムネイル生成の間隔（秒）')
+    parser.add_argument('--no-thumbnails', '-nt', action='store_true', help='サムネイルを生成しない')
+    parser.add_argument('--thumbnail-interval', '-i', type=int, default=10, help='サムネイル生成の間隔（秒）')
     args = parser.parse_args()
 
     file_name_prefix = args.file_name_prefix
@@ -180,7 +188,7 @@ def main():
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     process(name_time_list, video_path, output_dir,
-            create_thumbnails=args.thumbnails,
+            create_thumbnails=not args.no_thumbnails,
             thumbnail_interval=args.thumbnail_interval)
 
 
