@@ -124,6 +124,10 @@ def main():
                         help='ファイル名のプレフィックス。省略した場合は data dir 内の mp4 ファイルを見つけて使用します。')
     parser.add_argument('--thumbnail-interval', '-i', type=int, default=0,
                         help='サムネイル候補生成の秒間隔。0の場合サムネイルを生成しません。')
+    parser.add_argument('--overwrite-thumbnails', '-o', action='store_true',
+                        help='既存のサムネイルを上書きします。')
+    parser.add_argument('--workers', '-w', type=int, default=12,
+                        help='並列処理の最大ワーカー数。デフォルトは4。')
     args = parser.parse_args()
 
     file_name_prefix = args.file_name_prefix
@@ -143,7 +147,8 @@ def main():
     process_mp4_files(
         split_info_list, video_path, output_dir,
         thumbnail_interval=args.thumbnail_interval,
-        max_workers=4
+        overwrite_thumbnails=args.overwrite_thumbnails,
+        max_workers=args.workers
     )
 
 
