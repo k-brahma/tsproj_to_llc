@@ -52,24 +52,15 @@ ID,ファイル名,タイトル,終了時刻
 バージョン: 1.0
 最終更新日: [更新日]
 """
+import argparse
 import csv
-import subprocess
-from concurrent.futures import ThreadPoolExecutor
+import os.path
 from pathlib import Path
 
-from thumbnail import generate_thumbnails_in_memory
+from movie_processor import process_mp4_files
 
 
-def convert_to_seconds(time_str):
-    """ 文字列形式の時間（'HH:MM:SS'）を秒単位に変換する関数
-
-    :param: time_str: 文字列形式の時間（'HH:MM:SS'）
-    """
-    hours, minutes, seconds = map(int, time_str.split(':'))
-    return hours * 3600 + minutes * 60 + seconds
-
-
-def get_split_times(csv_path):
+def get_split_info_list(csv_path):
     """ CSVファイルから分割タイミングを読み込む関数
 
     csv ファイルは以下の列を有する。
@@ -77,6 +68,8 @@ def get_split_times(csv_path):
     このうち、ファイル名と終了時刻を取得する。
 
     :param: csv_path: CSVファイルのパス
+
+    :return: name_time_list: [(ファイル名, 終了時刻), ...]
     """
     name_time_list = []
     with open(csv_path, 'r', encoding='utf8') as f:
@@ -84,8 +77,13 @@ def get_split_times(csv_path):
         for i, row in enumerate(reader):
             if i == 0:
                 continue  # ヘッダ行をスキップ
+
             filename = row[1]  # ファイル名(拡張子なし)
-            end_time = convert_to_seconds(row[3])  # 終了時刻
+
+            # 文字列形式の時間（'HH:MM:SS'）を秒単位に変換する
+            hours, minutes, seconds = map(int, row[3].split(':'))
+            end_time = hours * 3600 + minutes * 60 + seconds  # 終了時刻
+
             name_time_list.append((filename, end_time))
 
     return name_time_list
@@ -102,94 +100,51 @@ def get_video_path_str(file_name):
     return video_path
 
 
-def split_video(base_video_path, output_mp4_name, start_time, end_time):
-    """ 単一の動画分割処理を行う関数 """
-    subprocess.call(
-        ['ffmpeg', '-y', '-i', base_video_path, '-ss', str(start_time), '-to', str(end_time), '-c', 'copy',
-         output_mp4_name])
-
-
-def create_thumbnail(video_path, output_path, time):
-    """ 単一のサムネイルを生成する関数 """
-    subprocess.call(
-        ['ffmpeg', '-y', '-i', video_path, '-ss', str(time), '-vframes', '1', '-q:v', '2', str(output_path)])
-
-
-import argparse
-
-
-def process(name_time_list, base_video_path, output_dir, create_thumbnails=True, thumbnail_interval=10, max_workers=4):
-    """ メイン処理を行う関数 """
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        start_time = 0
-        futures = []
-        for filename, end_time in name_time_list:
-            future = executor.submit(process_single_video, filename, end_time, base_video_path, output_dir, start_time,
-                                     thumbnail_interval if create_thumbnails else None)
-            futures.append(future)
-            start_time = end_time
-
-        # すべてのタスクが完了するのを待つ
-        for future in futures:
-            future.result()
-
-    print("すべての処理が完了しました。")
-
-
-def process_single_video(filename, end_time, base_video_path, output_dir, start_time, thumbnail_interval):
-    """ 単一の動画に対する分割とサムネイル生成を行う関数 """
-    output_mp4_name = f"{output_dir}{filename}.mp4"
-
-    # 動画の分割
-    split_video(base_video_path, output_mp4_name, start_time, end_time)
-
-    # 分割した動画を読み込んでの thumbnails 生成
-    # generate_thumbnails(output_dir, filename, output_mp4_name, thumbnail_interval)
-    generate_thumbnails_in_memory(output_dir, filename, output_mp4_name, thumbnail_interval)
-
-
-def generate_thumbnails(output_dir, filename, output_mp4_name, thumbnail_interval):
-    """ ffmpeg を使った thumbnail の生成 """
-    if thumbnail_interval is not None:
-        output_sub_dir = Path(f"{output_dir}{filename}")
-        output_sub_dir.mkdir(parents=True, exist_ok=True)
-
-        result = subprocess.run(
-            ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1',
-             output_mp4_name], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        duration = float(result.stdout)
-
-        thumbnail_times = list(range(0, int(duration), thumbnail_interval))
-        thumbnail_paths = [output_sub_dir / f"{filename}_{i // thumbnail_interval + 1:04d}.png" for i in
-                           thumbnail_times]
-
-        for time, path in zip(thumbnail_times, thumbnail_paths):
-            create_thumbnail(output_mp4_name, path, time)
-
-
 def main():
-    parser = argparse.ArgumentParser(description='動画分割プログラム')
-    parser.add_argument('file_name_prefix', nargs='?', help='ファイル名のプレフィックス')
-    parser.add_argument('--no-thumbnails', '-nt', action='store_true', help='サムネイルを生成しない')
-    parser.add_argument('--thumbnail-interval', '-i', type=int, default=10, help='サムネイル生成の間隔（秒）')
+    """ 動画を分割してサムネイルを生成するプログラム。
+
+    params:
+        - `file_name_prefix` (optional): 動画ファイルのプレフィックス。CSVファイルについても同じ名前を持つ必要があります。
+        - `--no-thumbnails` または `-n`: サムネイルを生成しないフラグ
+        - `--thumbnail-interval` または `-i`: サムネイル生成の間隔（秒）
+
+    output:
+        - 分割された動画ファイルは `data/results/` ディレクトリに保存されます。
+
+    usage:
+        以下のようにコマンドラインから実行します:
+        python main.py [file_name_prefix] --no-thumbnails --thumbnail-interval [interval]
+
+        例えば、`example_video.mp4` という 動画ファイルが `data/` ディレクトリ内に存在する場合:
+        以下のコマンドは `example_video.mp4` を分割し、5秒ごとにサムネイルを生成せずに `data/results/` に保存します。
+            python main.py example_video --no-thumbnails --thumbnail-interval 5
+    """
+    parser = argparse.ArgumentParser(description='動画分割プログラム。')
+    parser.add_argument('file_name_prefix',
+                        help='ファイル名のプレフィックス。省略した場合は data dir 内の mp4 ファイルを見つけて使用します。')
+    parser.add_argument('--thumbnail-interval', '-i', type=int, default=0,
+                        help='サムネイル候補生成の秒間隔。0の場合サムネイルを生成しません。')
     args = parser.parse_args()
 
     file_name_prefix = args.file_name_prefix
-    if not file_name_prefix:
-        # data ディレクトリ内で見つけた .mp4 ファイルを対象にする
-        file_name_prefix = next(Path("data").glob("*.mp4")).stem
-
-    csv_path = Path(f"data/{file_name_prefix}.csv")  # CSVファイルのパス
-    name_time_list = get_split_times(csv_path)  # 分割情報のリスト
     video_path = get_video_path_str(f"{file_name_prefix}.mp4")  # 動画ファイルのパス
+    csv_path = Path(f"data/{file_name_prefix}.csv")  # CSVファイルのパス
+    if not os.path.exists(video_path):
+        raise FileNotFoundError(f"動画ファイルが見つかりませんでした: {video_path}")
+    if not os.path.exists(csv_path):
+        raise FileNotFoundError(f"CSVファイルが見つかりませんでした: {csv_path}")
+
+    split_info_list = get_split_info_list(csv_path)
 
     # 分割後のファイルを保存するディレクトリ
     output_dir = "data/results/"
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    process(name_time_list, video_path, output_dir,
-            create_thumbnails=not args.no_thumbnails,
-            thumbnail_interval=args.thumbnail_interval)
+    process_mp4_files(
+        split_info_list, video_path, output_dir,
+        thumbnail_interval=args.thumbnail_interval,
+        max_workers=4
+    )
 
 
 if __name__ == '__main__':
